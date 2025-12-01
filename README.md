@@ -91,6 +91,15 @@ You can specify the path of the Android project you want to run:
 mish run /Users/user/Projects/MyAndroidApp
 ```
 
+
+# FW
+
+
+
+https://github.com/user-attachments/assets/4b5f3077-cd31-42f5-b4a7-db077532338f
+
+
+
 ## Troubleshooting
 
 - **`gradle: command not found`**: Install Gradle with `brew install gradle`.
