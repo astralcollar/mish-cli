@@ -104,3 +104,4 @@ https://github.com/user-attachments/assets/4b5f3077-cd31-42f5-b4a7-db077532338f
 
 - **`gradle: command not found`**: Install Gradle with `brew install gradle`.
 - **`emulator: command not found`**: Ensure Android SDK tools (`platform-tools`, `emulator`) are in your PATH.
+- if gradle are corrrupted and use home brew installer :```gradle wrapper```  
