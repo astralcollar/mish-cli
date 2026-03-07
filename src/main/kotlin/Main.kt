@@ -14,6 +14,13 @@ fun main(args: Array<String>) {
     if (command == "run") {
         val targetDir = if (args.size > 1) File(args[1]) else File(System.getProperty("user.dir"))
         runProject(targetDir)
+    } else if (command == "logs") {
+        val targetDir = File(System.getProperty("user.dir"))
+        val pkg = if (args.size > 1) args[1] else AndroidProject.getPackageName(targetDir) ?: run {
+            println("Usage: mish logs <package-name>")
+            exitProcess(1)
+        }
+        startDashboardLoop(targetDir, pkg)
     } else {
         println("Unknown command: $command")
         exitProcess(1)
@@ -86,9 +93,60 @@ fun runProject(currentDir: File) {
     // 7. Build and Run
     if (ProjectRunner.buildAndInstall(currentDir)) {
         ProjectRunner.launchApp(packageName)
-        println("Success! App launched.")
+        startDashboardLoop(currentDir, packageName)
     } else {
         println("Error: Build failed.")
         exitProcess(1)
+    }
+}
+
+fun startDashboardLoop(projectDir: File, packageName: String) {
+    val devices = EmulatorManager.getRunningDevices()
+    if (devices.isEmpty()) {
+        println("Error: No devices running to attach logs to.")
+        exitProcess(1)
+    }
+    val deviceId = devices.first()
+    
+    while (true) {
+        val action = LogcatDashboard.start(packageName, deviceId)
+        when (action) {
+            LogcatDashboard.Action.QUIT -> {
+                println("Exiting dashboard...")
+                exitProcess(0)
+            }
+            LogcatDashboard.Action.HOT_RELOAD -> {
+                println("--- Hot Reloading ---")
+                if (ProjectRunner.buildAndInstall(projectDir, "installDebug")) {
+                    ProjectRunner.launchApp(packageName)
+                } else {
+                    println("Hot reload failed. Press enter to return to logs.")
+                    readlnOrNull()
+                }
+            }
+            LogcatDashboard.Action.RELOAD_MENU -> {
+                println("--- Reload Menu ---")
+                val options = listOf(
+                    "1. Simple Debug (installDebug)", 
+                    "2. Clean Build (clean installDebug)", 
+                    "3. Deep Clean (clean installDebug --no-build-cache --refresh-dependencies)"
+                )
+                val selected = MenuSelector.selectFromList("Select Reload Type:", options)
+                if (selected != null) {
+                    val success = when {
+                        selected.startsWith("1") -> ProjectRunner.buildAndInstall(projectDir, "installDebug")
+                        selected.startsWith("2") -> ProjectRunner.buildAndInstall(projectDir, "clean", "installDebug")
+                        selected.startsWith("3") -> ProjectRunner.buildAndInstall(projectDir, "clean", "installDebug", "--no-build-cache", "--refresh-dependencies")
+                        else -> false
+                    }
+                    if (success) {
+                        ProjectRunner.launchApp(packageName)
+                    } else {
+                        println("Reload failed. Press enter to return to logs.")
+                        readlnOrNull()
+                    }
+                }
+            }
+        }
     }
 }

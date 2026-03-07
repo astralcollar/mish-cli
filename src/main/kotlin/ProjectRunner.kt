@@ -2,13 +2,13 @@ import java.io.File
 import java.util.concurrent.TimeUnit
 
 object ProjectRunner {
-    fun buildAndInstall(projectDir: File): Boolean {
+    fun buildAndInstall(projectDir: File, vararg tasks: String = arrayOf("installDebug")): Boolean {
         println("Building and installing app...")
         val gradlew = if (System.getProperty("os.name").lowercase().contains("win")) "gradlew.bat" else "./gradlew"
         
         try {
-            println("Running: $gradlew installDebug")
-            val process = ProcessBuilder(gradlew, "installDebug")
+            println("Running: $gradlew ${tasks.joinToString(" ")}")
+            val process = ProcessBuilder(gradlew, *tasks)
                 .directory(projectDir)
                 .redirectErrorStream(true)
                 .start()

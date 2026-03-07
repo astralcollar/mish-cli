@@ -12,23 +12,12 @@ repositories {
 
 dependencies {
     implementation("org.jline:jline:3.25.0")
+    implementation("org.jline:jline-terminal-jansi:3.25.0")
     testImplementation(kotlin("test"))
 }
 
 application {
     mainClass.set("MainKt")
-}
-
-// Configure Java and Kotlin target compatibility
-java {
-    sourceCompatibility = JavaVersion.VERSION_11
-    targetCompatibility = JavaVersion.VERSION_11
-}
-
-tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
-    kotlinOptions {
-        jvmTarget = "11"
-    }
 }
 
 tasks.test {
