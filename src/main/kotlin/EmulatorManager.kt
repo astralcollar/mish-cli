@@ -13,16 +13,12 @@ object EmulatorManager {
     }
 
     fun listAvds(): List<String> {
-        println("Checking for available AVDs...")
         return try {
             val process = ProcessBuilder("emulator", "-list-avds").start()
             val output = process.inputStream.bufferedReader().readText()
             process.waitFor()
-            val avds = output.lines().filter { it.isNotBlank() }
-            println("Found AVDs: $avds")
-            avds
+            output.lines().filter { it.isNotBlank() }
         } catch (e: Exception) {
-            println("Error listing AVDs: ${e.message}")
             emptyList()
         }
     }
