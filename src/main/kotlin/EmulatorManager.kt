@@ -35,15 +35,14 @@ object EmulatorManager {
             processBuilder.redirectErrorStream(true)
             val process = processBuilder.start()
             
-            // Read output in a separate thread to avoid blocking but show status
+            // Silently drain stdout/stderr to avoid blocking the process
             Thread {
-                process.inputStream.bufferedReader().forEachLine { line ->
-                    println("[Emulator]: $line")
-                }
-            }.start()
+                process.inputStream.bufferedReader().forEachLine { /* silenced */ }
+            }.also { it.isDaemon = true }.start()
 
             // Give it some time to start booting
-            println("Waiting for emulator to come online...")
+            print("Waiting for emulator to come online")
+            System.out.flush()
             Thread.sleep(5000)
         } catch (e: Exception) {
             println("Failed to launch emulator: ${e.message}")
@@ -67,19 +66,24 @@ object EmulatorManager {
     }
     
     fun waitForDeviceOnline(maxWaitSeconds: Int = 60): Boolean {
-        println("Waiting for device to come online...")
         val startTime = System.currentTimeMillis()
-        
+        val spinner = listOf(".", "..", "...")
+        var spinIndex = 0
+
         while ((System.currentTimeMillis() - startTime) < maxWaitSeconds * 1000) {
             val devices = getRunningDevices()
             if (devices.isNotEmpty()) {
+                print("\r") // clear the spinner line
                 println("Device online: ${devices.first()}")
                 return true
             }
+            val dots = spinner[spinIndex % spinner.size]
+            print("\rWaiting for emulator to come online$dots   ") // trailing spaces erase leftover chars
+            System.out.flush()
+            spinIndex++
             Thread.sleep(2000)
-            print(".")
         }
-        
+
         println()
         println("Timeout waiting for device.")
         return false

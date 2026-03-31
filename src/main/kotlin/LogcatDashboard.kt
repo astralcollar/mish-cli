@@ -24,15 +24,20 @@ object LogcatDashboard {
         val writer = terminal.writer()
         val reader = terminal.reader()
 
+        val printLock = Any()
+
         var actionToReturn = Action.QUIT
         var currentHeight = terminal.height.takeIf { it > 0 } ?: 24
         
-        writer.print("\u001B[2J") // Clear screen
-        writer.print("\u001B[?25l") // Hide cursor
-        writer.print("\u001B[?7l")  // Disable line wrapping
-        writer.print("\u001B[6;${currentHeight}r") // Set scrolling region from line 6 to bottom
-        writer.print("\u001B[${currentHeight};1H") // Move cursor to bottom left
-        writer.flush()
+        synchronized(printLock) {
+            writer.print("\u001B[?1049h") // Enter alternate screen buffer
+            writer.print("\u001B[2J") // Clear screen
+            writer.print("\u001B[?25l") // Hide cursor
+            writer.print("\u001B[?7l")  // Disable line wrapping
+            writer.print("\u001B[6;${currentHeight}r") // Set scrolling region from line 6 to bottom
+            writer.print("\u001B[${currentHeight};1H") // Move cursor to bottom left
+            writer.flush()
+        }
 
         val logManager = LogcatManager(deviceId, packageName) { line ->
             if (!isPaused) {
@@ -41,8 +46,10 @@ object LogcatDashboard {
                     logs.poll()
                 }
                 // Write log directly and scroll naturally within the ANSI scrolling region
-                writer.print("\r$line\n")
-                writer.flush()
+                synchronized(printLock) {
+                    writer.print("\r$line\n")
+                    writer.flush()
+                }
             }
         }
         logManager.start()
@@ -59,31 +66,35 @@ object LogcatDashboard {
                 // If terminal shrinks/grows, update the scroll region
                 if (height != currentHeight) {
                     currentHeight = height
-                    writer.print("\u001B[6;${currentHeight}r")
-                    writer.print("\u001B[${currentHeight};1H")
+                    synchronized(printLock) {
+                        writer.print("\u001B[6;${currentHeight}r")
+                        writer.print("\u001B[${currentHeight};1H")
+                    }
                 }
 
-                // --- Draw Fixed Header ---
-                writer.print("\u001B[s") // Save cursor (which is at the bottom streaming logs)
-                writer.print("\u001B[1;1H") // Move to top-left
-                
-                writer.print("\u001B[44;37m")
-                writer.print(" ".repeat(width) + "\r")
-                writer.println(" \uD83D\uDE80 Mish Live Dashboard  │  Device: $deviceId  │  App: $packageName\r")
-                
-                writer.print(" ".repeat(width) + "\r")
-                val statusText = if (isPaused) "⏸ PAUSED" else "● LIVE"
-                val pidText = if (logManager.currentLevel != null) "WAITING FOR PID..." else "" // Just indicating it might be waiting
-                val tagText = if (currentTagInput.isEmpty()) logManager.currentTag else currentTagInput + "█"
-                writer.println(" Level: [${logManager.currentLevel.name}]  │  Tag: [$tagText]  │  Status: $statusText\r")
-                
-                writer.print(" ".repeat(width) + "\r")
-                writer.println(" [l] Level  [t] Tag  [p] Pause  [c] Clear  [h] Hot Reload  [r] Reload Menu  [q] Quit \r")
-                writer.print("\u001B[0m")
-                writer.println("═".repeat(width) + "\r")
-                
-                writer.print("\u001B[u") // Restore cursor back to the logging area
-                writer.flush()
+                synchronized(printLock) {
+                    // --- Draw Fixed Header ---
+                    writer.print("\u001B[s") // Save cursor (which is at the bottom streaming logs)
+                    writer.print("\u001B[1;1H") // Move to top-left
+                    
+                    writer.print("\u001B[44;37m")
+                    writer.print(" ".repeat(width) + "\r")
+                    writer.println(" \uD83D\uDE80 Mish Live Dashboard  │  Device: $deviceId  │  App: $packageName\r")
+                    
+                    writer.print(" ".repeat(width) + "\r")
+                    val statusText = if (isPaused) "⏸ PAUSED" else "● LIVE"
+                    val pidText = if (logManager.currentLevel != null) "WAITING FOR PID..." else "" // Just indicating it might be waiting
+                    val tagText = if (currentTagInput.isEmpty()) logManager.currentTag else currentTagInput + "█"
+                    writer.println(" Level: [${logManager.currentLevel.name}]  │  Tag: [$tagText]  │  Status: $statusText\r")
+                    
+                    writer.print(" ".repeat(width) + "\r")
+                    writer.println(" [l] Level  [t] Tag  [p] Pause  [c] Clear  [h] Hot Reload  [r] Reload Menu  [q] Quit \r")
+                    writer.print("\u001B[0m")
+                    writer.println("═".repeat(width) + "\r")
+                    
+                    writer.print("\u001B[u") // Restore cursor back to the logging area
+                    writer.flush()
+                }
 
                 // --- Read Input ---
                 var key = -2
@@ -131,14 +142,16 @@ object LogcatDashboard {
                             'p', 'P' -> { isPaused = !isPaused }
                             'c', 'C' -> { 
                                 logs.clear() 
-                                writer.print("\u001B[s") // save
-                                writer.print("\u001B[6;1H") // goto line 6
-                                writer.print("\u001B[J") // clear to end of screen
-                                writer.print("\u001B[${currentHeight};1H") // cursor to bottom
-                                writer.print("\u001B[u") // restore
-                                // Actually, just moving the cursor to bottom is enough for scroll to resume nicely
-                                writer.print("\u001B[${currentHeight};1H")
-                                writer.flush()
+                                synchronized(printLock) {
+                                    writer.print("\u001B[s") // save
+                                    writer.print("\u001B[6;1H") // goto line 6
+                                    writer.print("\u001B[J") // clear to end of screen
+                                    writer.print("\u001B[${currentHeight};1H") // cursor to bottom
+                                    writer.print("\u001B[u") // restore
+                                    // Actually, just moving the cursor to bottom is enough for scroll to resume nicely
+                                    writer.print("\u001B[${currentHeight};1H")
+                                    writer.flush()
+                                }
                             }
                             't', 'T' -> { isTypingTag = true; currentTagInput = "" }
                             3.toChar() -> { isRunning = false; actionToReturn = Action.QUIT }
@@ -153,6 +166,7 @@ object LogcatDashboard {
             writer.print("\u001B[?7h")  // Enable line wrapping
             writer.print("\u001B[1;${terminal.height}r") // Reset scrolling region to full screen
             writer.print("\u001B[0m\u001B[2J\u001B[H")
+            writer.print("\u001B[?1049l") // Exit alternate screen buffer
             writer.flush()
             terminal.close()
         }
